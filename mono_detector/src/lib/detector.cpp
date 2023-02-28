@@ -32,10 +32,26 @@ void detectMono(
 	// Continue with a deep copy to prevent modification of original data
 	cv::Mat processed = image.clone();
 
+  cv::imwrite("/home/devon/tangram/third_party/multi_sensor_calibration/data/input_image.png", processed);
+
 	// Optionally blur the image
 	if (configuration.pre_blur.apply) {
 		processed = gaussianBlur(processed, configuration.pre_blur);
 	}
+
+	cv::Mat pre = processed.clone();
+	cv::Mat upper_mask;
+	cv::Mat lower_mask;
+	cv::Mat mask;
+  cv::imwrite("/home/devon/tangram/third_party/multi_sensor_calibration/data/pre_blur.png", processed);
+	double thresh_upper = cv::threshold(pre, upper_mask, 255, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
+	double thresh_lower = cv::threshold(pre, lower_mask, 150, 255, CV_THRESH_BINARY_INV);
+	cv::bitwise_and(upper_mask, lower_mask, mask);
+	cv::bitwise_and(pre, mask, pre);
+  cv::imwrite("/home/devon/tangram/third_party/multi_sensor_calibration/data/thresh.png", pre);
+	cv::erode(pre, pre, cv::Mat(), cv::Point(-1, -1), 12);
+  cv::imwrite("/home/devon/tangram/third_party/multi_sensor_calibration/data/erode.png", pre);
+	processed = pre;
 
 	// Optionally do edge detection on the image
 	if (configuration.edge_detection.apply) {
@@ -44,10 +60,14 @@ void detectMono(
 		processed = canny_filtered;
 	}
 
+  cv::imwrite("/home/devon/tangram/third_party/multi_sensor_calibration/data/edge_detection.png", processed);
+
 	// Optionally blur the image (AGAIN?)
 	if (configuration.post_blur.apply) {
 		processed = gaussianBlur(processed, configuration.post_blur);
 	}
+
+  cv::imwrite("/home/devon/tangram/third_party/multi_sensor_calibration/data/post_blur.png", processed);
 
 	// Detect circles with hough (because that's available in opencv)
 	std::vector<cv::Vec3f> circles;
@@ -64,9 +84,9 @@ void detectMono(
 	);
 
 	// ToDo: Filter the 4 best scoring circles
-	
+
 	// visualize result
-	if (configuration.visualize) {
+	if (true) {
 		visualize(image, circles, configuration.roi);
 	}
 
@@ -76,15 +96,15 @@ void detectMono(
 	// Filter circles based on median closest to median x and y:
 	if (circles.size() > 4) {
 		// Compute median radius of circles
-		std::vector<double> median_circle = compute_median_circle(circles); 
+		std::vector<double> median_circle = compute_median_circle(circles);
 		double median_x = median_circle[0]; // Compute median for first dimension of cicle: aka x
 		double median_y = median_circle[1]; // Compute median for first dimension of cicle: aka y
-		
+
 		// Compute distances wrt median
 		std::vector<double> distances_from_median;
 		for (const auto & circle : circles ) {
 			distances_from_median.push_back(sqrt((circle[0]-median_x)*(circle[0]-median_x)+(circle[1]-median_y)*(circle[1]-median_y)));
-		} 
+		}
 
 		// Remove untill we have 4 detections
 		while (circles.size() > 4) {

@@ -140,15 +140,13 @@ std::vector<std::vector<Lidar::PointWithDist*> > toDistanceRing(pcl::PointCloud<
 	std::vector<std::vector<Lidar::PointWithDist*> > rings = getRings(in, lidar_parameters);
 	rings.erase(std::remove_if(rings.begin(), rings.end(), isFewPoints), rings.end()); // c++03 compatible
 	for (std::vector<std::vector<Lidar::PointWithDist*> >::iterator ring = rings.begin(); ring < rings.end(); ring++){
-		if (ring->size() < 10) {
-			std::cerr << "Ring too small, continue.." << std::endl;
-			continue;
-		}
 		(*ring->begin())->distance = 0;
 		(*(ring->end()-1))->distance = 0;
 		// Loop over the points in the ring
+		std::vector<float> distances;
+		distances.reserve(ring->size());
 		float total_distance_ring = 0;
-		for (std::vector<Lidar::PointWithDist*>::iterator pt = ring->begin() + 1; pt < ring->end() - 1; pt++) {
+		for (std::vector<Lidar::PointWithDist*>::iterator pt = ring->begin() + 1; pt != ring->end() - 1; ++pt) {
 			Lidar::PointWithDist* next_point = *(pt + 1);
 			Lidar::PointWithDist* prev_point = *(pt - 1);
 			float dx = prev_point->x - next_point->x;
@@ -156,10 +154,13 @@ std::vector<std::vector<Lidar::PointWithDist*> > toDistanceRing(pcl::PointCloud<
 			float dz = prev_point->z - next_point->z;
 			(*pt)->distance = sqrt(dx*dx+dy*dy+dz*dz)/2;
 			total_distance_ring += (*pt)->distance;
+			distances.push_back((*pt)->distance);
 		}
 		if (ring->size() > max_points_ring) {
 			max_points_ring = ring->size();
 			average_distance_ring = total_distance_ring/max_points_ring;
+			std::sort(distances.begin(), distances.end());
+			average_distance_ring = distances[distances.size() / 2];
 		}
 	}
 	return rings;
@@ -217,7 +218,7 @@ int pointsWithinRadius(pcl::PointXYZ const & point, pcl::PointCloud<Lidar::Point
 	std::vector<float> distances;
 
 	// Setup octree
-	float resolution = 0.02f;
+	float resolution = 0.01f;
 	pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree(resolution);
 	octree.setInputCloud(out.makeShared());
 	octree.addPointsFromInputCloud();
@@ -246,7 +247,7 @@ bool processCircle(pcl::PointCloud<pcl::PointXYZ> & cloud, pcl::PointCloud<Lidar
 
 
 	if (inliers->indices.size() == 0) {
-	    return false;
+			return false;
 		//throw pcl::PCLException("Lidar calibration board detection could not estimate a circle fit for lidar camera edge cloud.");
 	}
 
@@ -257,11 +258,11 @@ bool processCircle(pcl::PointCloud<pcl::PointXYZ> & cloud, pcl::PointCloud<Lidar
 
 	if (pointsWithinRadius(point, plane, config.radius_max_points) <= config.max_points_within_radius) {
 		// Filter point cloud
-        pcl::ExtractIndices<pcl::PointXYZ> extract;
-        extract.setInputCloud(cloud.makeShared());
-        extract.setIndices(inliers);
-        extract.setNegative(true);
-        extract.filter(cloud);
+				pcl::ExtractIndices<pcl::PointXYZ> extract;
+				extract.setInputCloud(cloud.makeShared());
+				extract.setIndices(inliers);
+				extract.setNegative(true);
+				extract.filter(cloud);
 		return true;
 	}
 	return false;
@@ -285,33 +286,33 @@ pcl::PointCloud<pcl::PointXYZ> processCircles(pcl::PointCloud<pcl::PointXYZ> & c
 } // anonymous namespace
 
 pcl::PointCloud<pcl::PointXYZ> convertEigentoPointcloud(Eigen::Matrix3Xd matrix){
-  pcl::PointCloud<pcl::PointXYZ> cloud;
-  cloud.width  = matrix.cols();
-  cloud.height = 1;
-  cloud.points.resize (cloud.width * cloud.height);
+	pcl::PointCloud<pcl::PointXYZ> cloud;
+	cloud.width  = matrix.cols();
+	cloud.height = 1;
+	cloud.points.resize (cloud.width * cloud.height);
 
-  for (size_t i = 0; i < cloud.points.size (); ++i)
-  {
-    cloud.points[i].x = matrix.col(i)[0];
-    cloud.points[i].y = matrix.col(i)[1];
-    cloud.points[i].z = matrix.col(i)[2];
-  }
+	for (size_t i = 0; i < cloud.points.size (); ++i)
+	{
+		cloud.points[i].x = matrix.col(i)[0];
+		cloud.points[i].y = matrix.col(i)[1];
+		cloud.points[i].z = matrix.col(i)[2];
+	}
 
-  return cloud;
+	return cloud;
 }
 
 Eigen::Matrix3Xd convertPointcloudToEigen(pcl::PointCloud<pcl::PointXYZ> cloud) {
-  Eigen::Matrix3Xd out = Eigen::Matrix3Xd::Zero(3,cloud.points.size()) ;
+	Eigen::Matrix3Xd out = Eigen::Matrix3Xd::Zero(3,cloud.points.size()) ;
 
-  for (size_t i = 0; i < cloud.points.size (); ++i)
-  {
-    // Convert to eigen matrix:
-    out(0,i) = cloud.points[i].x;
-    out(1,i) = cloud.points[i].y;
-    out(2,i) = cloud.points[i].z;
-  }
+	for (size_t i = 0; i < cloud.points.size (); ++i)
+	{
+		// Convert to eigen matrix:
+		out(0,i) = cloud.points[i].x;
+		out(1,i) = cloud.points[i].y;
+		out(2,i) = cloud.points[i].z;
+	}
 
-  return out;
+	return out;
 }
 
 /// Apply plane fit and return filtered point cloud
@@ -357,8 +358,8 @@ pcl::PointCloud<pcl::PointXYZ> refinement(pcl::PointCloud<pcl::PointXYZ> pattern
 	 double width_calibration_board = config.refinement.width;
 	 double heigth_calibration_board = config.refinement.height;
 	 calibration_board << 0, width_calibration_board, 0, width_calibration_board,
-	         0, 0, heigth_calibration_board, heigth_calibration_board,
-	         0, 0, 0, 0;
+					 0, 0, heigth_calibration_board, heigth_calibration_board,
+					 0, 0, 0, 0;
 
 	// Convert detections to Eigen
 	Eigen::Matrix3Xd detections = convertPointcloudToEigen(pattern);

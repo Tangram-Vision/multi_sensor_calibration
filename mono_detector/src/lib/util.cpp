@@ -118,13 +118,10 @@ void visualize(cv::Mat const & image, std::vector<cv::Vec3f> const & circles, cv
 	if (roi != cv::Rect()) {
 		cv::rectangle(draw, roi.tl(), roi.br(), cv::Scalar(255, 0, 0), 3);
 	}
-	std::string window_name = "result";
-	cv::namedWindow(window_name, CV_WINDOW_NORMAL);
-	cv::imshow(window_name, draw);
-	cv::waitKey(100);
+	cv::imwrite("/home/devon/tangram/third_party/multi_sensor_calibration/data/circles.png", draw);
 }
 
-std::vector<double> compute_median_circle(std::vector<cv::Vec3f> const & circles) { 
+std::vector<double> compute_median_circle(std::vector<cv::Vec3f> const & circles) {
 	// Output vector
 	std::vector<double> median_vector;
 
